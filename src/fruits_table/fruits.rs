@@ -1,5 +1,5 @@
 use sea_orm::entity::prelude::*;
-    
+
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
 #[sea_orm(table_name = "fruits")]
 pub struct Model {
@@ -22,4 +22,3 @@ impl RelationTrait for Relation {
 }
 
 impl ActiveModelBehavior for ActiveModel {}
-
