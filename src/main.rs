@@ -1,39 +1,34 @@
-mod db;
-use db::fruits_table::prelude::*;
-use db::suppliers_table::prelude::*;
+use entity::fruits;
+// use entity::suppliers;
+use entity::sea_orm;
+use migration::{Migrator, MigratorTrait};
 use chrono::Utc;
-use sea_orm::{entity::Set, prelude::*, ConnectionTrait, Database, Schema};
+use sea_orm::{entity::Set, prelude::*};
 use anyhow::Result;
+use std::env;
 
 #[async_std::main]
 async fn main() -> Result<()>{
-  let env_database_url = include_str!("../.env").trim();
-  let split_url: Vec<&str> = env_database_url.split("=").collect();
-  let database_url = split_url[1];
-  let db = Database::connect(database_url).await?;
+  // get env vars
+  dotenv::dotenv().ok();
+  let db_url = env::var("DATABASE_URL").expect("DATABASE_URL is not set in .env file");
+  let host = env::var("HOST").expect("HOST is not set in .env file");
+  let port = env::var("PORT").expect("PORT is not set in .env file");
+  let server_url = format!("{}:{}", host, port);
+  println!("Starting server at {}", server_url);
+
+  let conn = sea_orm::Database::connect(&db_url).await.unwrap();
+  Migrator::up(&conn, None).await.unwrap();
   println!("Database connected!");
 
-  let builder = db.get_database_backend();
-  let schema = Schema::new(builder);
-  let create_table_op = db
-      .execute(builder.build(&schema.create_table_from_entity(Fruits)))
-      .await;
-  println!(
-      "`CREATE TABLE fruits` {:?}",
-      match create_table_op {
-          Ok(_) => "Operation Successful".to_owned(),
-          Err(e) => format!("Unsuccessful - Error {:?}", e),
-      }
-  );
-
-  let fruit_01 = FruitsActiveModel {
+  let fruit_01 = fruits::ActiveModel {
     name: Set("Apple".to_owned()),
     datetime_utc: Set(Utc::now().naive_utc()),
     unit_price: Set(2),
     sku: Set("FM2022AKB40".to_owned()),
     ..Default::default()
   };
-  let fruit_insert_operation = Fruits::insert(fruit_01).exec(&db).await;
+  let fruit_insert_operation = fruits::Entity::insert(fruit_01).exec(&conn).await;
   println!("INSERTED ONE: {:?}", fruit_insert_operation?);
 
   Ok(())
