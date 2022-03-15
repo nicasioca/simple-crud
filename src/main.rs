@@ -8,13 +8,24 @@ use actix_web::{get, middleware, web, App, HttpResponse, HttpServer};
 use serde_json::to_string;
 use dotenv::{dotenv, var};
 
+
+
 #[derive(Debug, Clone)]
 struct AppState {
   conn: DatabaseConnection,
 }
 
+fn db_setup() -> (String, String) {
+  dotenv().ok();
+  let db_url = var("DATABASE_URL").expect("DATABASE_URL is not set in .env file");
+  let host = var("HOST").expect("HOST is not set in .env file");
+  let port = var("PORT").expect("PORT is not set in .env file");
+  let server_url = format!("{}:{}", host, port);
+  (db_url, server_url)
+}
+
 #[get("/")]
-async fn index(data: web::Data<AppState>) -> HttpResponse {
+async fn show_fruits(data: web::Data<AppState>) -> HttpResponse {
   let conn = &data.conn;
   let fruits_table_rows: Vec<fruits::Model> = fruits::Entity::find()
     .all(conn)
@@ -27,14 +38,24 @@ async fn index(data: web::Data<AppState>) -> HttpResponse {
     .body(body)
 }
 
+#[get("/{id}")]
+async fn fruit_detail(path: web::Path<i32>, data: web::Data<AppState>) -> HttpResponse {
+  let id = path.into_inner();
+  let conn = &data.conn;
+  let fruits_table_rows : Option<fruits::Model> = fruits::Entity::find_by_id(id)
+    .one(conn)
+    .await
+    .unwrap();
+  let body = to_string(&fruits_table_rows).unwrap();
+
+  HttpResponse::Ok()
+    .content_type("application/json")
+    .body(body)
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-  // get env vars
-  dotenv().ok();
-  let db_url = var("DATABASE_URL").expect("DATABASE_URL is not set in .env file");
-  let host = var("HOST").expect("HOST is not set in .env file");
-  let port = var("PORT").expect("PORT is not set in .env file");
-  let server_url = format!("{}:{}", host, port);
+  let (db_url, server_url) = db_setup();
   println!("Starting server at {}", server_url);
 
   let conn = sea_orm::Database::connect(&db_url).await.unwrap();
@@ -45,7 +66,13 @@ async fn main() -> std::io::Result<()> {
   HttpServer::new(move || App::new()
     .app_data(state.clone())
     .wrap(middleware::Compress::default())
-    .service(index))
+    .service(show_fruits)
+    .service(
+      web::scope("/fruits")
+        .service(show_fruits)
+        .service(fruit_detail),
+      ),
+    )
     .bind(&server_url)?
     .run()
     .await?;
