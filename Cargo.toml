@@ -18,3 +18,4 @@ actix-web = "4"
 entity = { path = "entity" }
 migration = { path = "migration" }
 serde_json = "1.0.79"
+actix-cors = "0.6.1"

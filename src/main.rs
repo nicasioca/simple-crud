@@ -4,7 +4,8 @@ use entity::sea_orm;
 use migration::{Migrator, MigratorTrait};
 // use chrono::Utc;
 use sea_orm::{entity::Set, prelude::*};
-use actix_web::{get, middleware, web, App, HttpResponse, HttpServer};
+use actix_cors::Cors;
+use actix_web::{get, middleware, http, web, App, HttpResponse, HttpServer};
 use serde_json::to_string;
 use dotenv::{dotenv, var};
 
@@ -63,19 +64,29 @@ async fn main() -> std::io::Result<()> {
   println!("Database connected!");
 
   let state = web::Data::new(AppState { conn });
-  HttpServer::new(move || App::new()
-    .app_data(state.clone())
-    .wrap(middleware::Compress::default())
-    .service(show_fruits)
-    .service(
-      web::scope("/fruits")
-        .service(show_fruits)
-        .service(fruit_detail),
-      ),
-    )
-    .bind(&server_url)?
-    .run()
-    .await?;
+  HttpServer::new(move || {
+    let cors = Cors::default()
+        .allowed_origin("http://localhost:8080")
+        .allowed_origin("http://localhost:3000")
+        .allowed_methods(vec!["GET", "POST"])
+        .allowed_headers(vec![http::header::AUTHORIZATION, http::header::ACCEPT])
+        .allowed_header(http::header::CONTENT_TYPE)
+        .max_age(3600);
+    
+    App::new()
+      .wrap(cors)
+      .app_data(state.clone())
+      .wrap(middleware::Compress::default())
+      .service(show_fruits)
+      .service(
+        web::scope("/fruits")
+          .service(show_fruits)
+          .service(fruit_detail),
+        )
+  })
+  .bind(&server_url)?
+  .run()
+  .await?;
 
   Ok(())
 }
